@@ -19,11 +19,10 @@ function FeedbackForm() {
 
         // Yêu cầu 3: "Chỉ xây dựng chức năng 1c"
         // Chúng ta "giả lập" ID của khách hàng
-        // (Trong thực tế, ID này sẽ lấy từ user đang đăng nhập
-        // hoặc từ kết quả tìm kiếm khách hàng)
         const dataToSubmit = {
             ...formData,
-            customerId: 'MOCK_CUSTOMER_ID_60d0fe4f531123', // ID giả lập
+            // SỬA LỖI: Thay chuỗi text bằng một chuỗi 24-ký-tự-hex
+            customerId: '60d0fe4f5311236168a109cc', // ID giả lập (đúng định dạng)
         };
 
         try {

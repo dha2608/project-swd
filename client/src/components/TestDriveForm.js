@@ -24,7 +24,8 @@ function TestDriveForm() {
         // Vì vậy, chúng ta sẽ "giả lập" (mock) ID của xe (từ 1.a)
         const dataToSubmit = {
             ...formData,
-            vehicleId: 'MOCK_VEHICLE_ID_60d0fe4f531123', // ID giả lập
+            // SỬA LỖI: Thay chuỗi text bằng một chuỗi 24-ký-tự-hex
+            vehicleId: '60d0fe4f5311236168a109cb', // ID giả lập (đúng định dạng)
             schedule: new Date(formData.schedule).toISOString(),
         };
 
