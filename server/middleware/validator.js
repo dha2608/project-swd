@@ -1,8 +1,6 @@
 const { body, validationResult } = require('express-validator');
 
-
-const validateTestDrive = [
-
+const validateTestDriveRules = [
     body('customerName')
         .trim()
         .notEmpty()
@@ -12,17 +10,16 @@ const validateTestDrive = [
         .isMobilePhone('vi-VN')
         .withMessage('Số điện thoại không hợp lệ.'),
 
-
     body('vehicleId')
         .isMongoId()
         .withMessage('Vehicle ID không hợp lệ.'),
+    
 
     body('schedule')
         .isISO8601()
         .toDate()
         .withMessage('Ngày hẹn không hợp lệ.')
 ];
-
 
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -39,6 +36,6 @@ const validate = (req, res, next) => {
 };
 
 module.exports = {
-    validateTestDrive,
+    validateTestDriveRules,
     validate,
 };
