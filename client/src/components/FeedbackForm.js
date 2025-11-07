@@ -17,12 +17,9 @@ function FeedbackForm() {
         setMessage(null);
         setIsError(false);
 
-        // Yêu cầu 3: "Chỉ xây dựng chức năng 1c"
-        // Chúng ta "giả lập" ID của khách hàng
         const dataToSubmit = {
             ...formData,
-            // SỬA LỖI: Thay chuỗi text bằng một chuỗi 24-ký-tự-hex
-            customerId: '60d0fe4f5311236168a109cc', // ID giả lập (đúng định dạng)
+            customerId: '60d0fe4f5311236168a109cc', 
         };
 
         try {
@@ -37,7 +34,7 @@ function FeedbackForm() {
 
     return (
         <div className="form-card">
-            <h2>(1.c.3) Ghi nhận Khiếu nại</h2>
+            <h2>Ghi nhận Khiếu nại</h2>
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
                     <label htmlFor="content">Nội dung khiếu nại</label>

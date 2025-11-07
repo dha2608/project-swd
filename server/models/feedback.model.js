@@ -1,9 +1,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// Ánh xạ (map) Class "Feedback" từ sơ đồ
 const feedbackSchema = new Schema({
-    // Thuộc tính (Attributes)
     content: { type: String, required: true },
     date: { type: Date, default: Date.now },
     status: { 
@@ -12,7 +10,7 @@ const feedbackSchema = new Schema({
         default: 'OPEN' 
     },
 
-    // Quan hệ "groups" (Feedback thuộc về 1 Customer)
+
     customer: { 
         type: Schema.Types.ObjectId, 
         ref: 'Customer', 

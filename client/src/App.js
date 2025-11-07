@@ -7,7 +7,7 @@ function App() {
   return (
     <div className="App">
       <h1 style={{ textAlign: 'center', color: '#007bff' }}>
-        EVDMS - Module CRM (Phần 1.c)
+        EVDMS - Module CRM
       </h1>
       <div className="crm-container">
         <TestDriveForm />

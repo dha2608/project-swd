@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { createTestDrive } from '../services/api';
 
 function TestDriveForm() {
-    // Quản lý trạng thái của form
     const [formData, setFormData] = useState({
         customerName: '',
         customerPhone: '',
@@ -20,20 +19,18 @@ function TestDriveForm() {
         setMessage(null);
         setIsError(false);
 
-        // Yêu cầu 3: "Chỉ xây dựng chức năng 1c"
-        // Vì vậy, chúng ta sẽ "giả lập" (mock) ID của xe (từ 1.a)
+ 
         const dataToSubmit = {
             ...formData,
-            // SỬA LỖI: Thay chuỗi text bằng một chuỗi 24-ký-tự-hex
-            vehicleId: '60d0fe4f5311236168a109cb', // ID giả lập (đúng định dạng)
+
+            vehicleId: '60d0fe4f5311236168a109cb', 
             schedule: new Date(formData.schedule).toISOString(),
         };
 
         try {
-            // (Msg 2) Gửi request đến Controller
+
             const response = await createTestDrive(dataToSubmit);
-            
-            // (Msg 12) Hiển thị thành công
+
             setMessage(`Tạo lịch hẹn thành công! ID: ${response.data._id}`);
             setFormData({ customerName: '', customerPhone: '', schedule: '' });
         } catch (error) {
@@ -44,7 +41,7 @@ function TestDriveForm() {
 
     return (
         <div className="form-card">
-            <h2>(1.c.2) Đặt lịch hẹn Lái thử</h2>
+            <h2>Đặt lịch hẹn Lái thử</h2>
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
                     <label htmlFor="customerName">Tên khách hàng</label>

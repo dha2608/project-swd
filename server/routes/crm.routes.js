@@ -1,13 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { createTestDrive, createFeedback } = require('../controllers/crm.controller');
+const crmController = require('../controllers/crm.controller');
 
-// API cho Phần 1.c
+const { validateTestDriveRules, validate } = require('../middleware/validator');
 
-// POST /api/crm/test-drives
-router.post('/test-drives', createTestDrive);
+router.post(
+    '/test-drives', 
+    validateTestDriveRules, 
+    validate,              
+    crmController.createTestDrive 
+);
 
-// POST /api/crm/feedback
-router.post('/feedback', createFeedback);
+
+router.post('/feedback', crmController.createFeedback);
 
 module.exports = router;
