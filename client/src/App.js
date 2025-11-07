@@ -1,23 +1,18 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import TestDriveForm from './components/TestDriveForm';
+import FeedbackForm from './components/FeedbackForm';
+import './App.css'; // Import file CSS
 
 function App() {
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <h1 style={{ textAlign: 'center', color: '#007bff' }}>
+        EVDMS - Module CRM (Phần 1.c)
+      </h1>
+      <div className="crm-container">
+        <TestDriveForm />
+        <FeedbackForm />
+      </div>
     </div>
   );
 }
