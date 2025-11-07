@@ -12,10 +12,10 @@ h1, h2 {
   text-align: center;
 }
 
-/* --- Main Layout (thay thế style={appStyle}) --- */
+/* --- Main Layout (Quan trọng: Sửa lỗi xếp dọc) --- */
 .container {
-  display: flex;
-  flex-direction: row;
+  display: flex;              /* <-- Lệnh này xếp 2 form nằm ngang */
+  flex-direction: row;        /* <-- Khai báo hướng nằm ngang */
   justify-content: center;
   align-items: flex-start;
   flex-wrap: wrap;

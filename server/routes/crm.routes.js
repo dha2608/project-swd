@@ -6,11 +6,10 @@ const { validateTestDriveRules, validate } = require('../middleware/validator');
 
 router.post(
     '/test-drives', 
-    validateTestDriveRules, 
-    validate,              
+    validateTestDriveRules,  
+    validate,           
     crmController.createTestDrive 
 );
-
 
 router.post('/feedback', crmController.createFeedback);
 
