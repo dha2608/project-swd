@@ -3,14 +3,23 @@ const Schema = mongoose.Schema;
 
 const feedbackSchema = new Schema({
     content: { type: String, required: true },
-    date: { type: Date, default: Date.now },
+    type: { 
+        type: String, 
+        enum: ['GENERAL', 'FEEDBACK', 'COMPLAINT'], 
+        default: 'GENERAL' 
+    },
     status: { 
         type: String, 
-        enum: ['OPEN', 'RESOLVED', 'CLOSED'], 
+        enum: ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'], 
         default: 'OPEN' 
     },
+    resolution: { type: String },
+    resolvedAt: { type: Date },
 
-
+    dealer: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    },
     customer: { 
         type: Schema.Types.ObjectId, 
         ref: 'Customer', 

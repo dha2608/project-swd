@@ -1,17 +1,31 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const ProtectedRoute = () => {
-    const { user } = useAuth(); // Lấy thông tin user từ Context
+const ProtectedRoute = ({ allowedRoles }) => {
+    const { user, isLoading } = useAuth();
+    const location = useLocation();
 
-    if (!user) {
-        // Nếu user chưa đăng nhập, điều hướng về trang /login
-        // 'replace' để người dùng không thể "back" lại trang cũ
-        return <Navigate to="/login" replace />;
+    if (isLoading) {
+        return (
+            <div className="loading-spinner-container">
+                <div className="loading-spinner"></div>
+            </div>
+        );
     }
 
-    // Nếu đã đăng nhập, cho phép hiển thị trang (Dashboard, CRM...)
+    if (!user) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    const hasRequiredRole = allowedRoles 
+        ? allowedRoles.includes(user.role) 
+        : true;
+
+    if (!hasRequiredRole) {
+        return <Navigate to="/unauthorized" state={{ from: location }} replace />;
+    }
+
     return <Outlet />;
 };
 

@@ -1,70 +1,86 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import apiClient from '../services/api'; // (Chúng ta sẽ cập nhật file này ở bước 10)
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import apiClient, { getMe } from '../services/api';
 
-// 1. Tạo Context
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
-// 2. Tạo Provider (Component "bọc" toàn bộ App)
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true); // Trạng thái chờ
+    const [isLoading, setIsLoading] = useState(true);
 
-    // 3. Kiểm tra xem user đã đăng nhập chưa (khi tải lại trang)
-    useEffect(() => {
-        const userInfo = localStorage.getItem('userInfo');
-        if (userInfo) {
-            const parsedInfo = JSON.parse(userInfo);
-            setUser(parsedInfo);
-            // Cấu hình header mặc định cho apiClient
-            apiClient.defaults.headers.common['Authorization'] = `Bearer ${parsedInfo.token}`;
-        }
-        setLoading(false);
+    const logout = useCallback(() => {
+        localStorage.removeItem('token');
+        setUser(null);
     }, []);
 
-    // 4. Hàm Login
-    const login = async (email, password) => {
-        try {
-            // Gọi API /api/auth/login
-            const { data } = await apiClient.post('/auth/login', { email, password });
-            
-            // Lưu thông tin user vào localStorage
-            localStorage.setItem('userInfo', JSON.stringify(data));
-            
-            // Cấu hình header cho các request sau
-            apiClient.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-            
-            // Cập nhật state
-            setUser(data);
-            return true;
-        } catch (error) {
-            throw error; // Ném lỗi để LoginPage có thể bắt
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            getMe().then(response => {
+                setUser(response.data.data);
+            }).catch(() => {
+                localStorage.removeItem('token');
+            }).finally(() => {
+                setIsLoading(false);
+            });
+        } else {
+            setIsLoading(false);
         }
-    };
+    }, []);
 
-    // 5. Hàm Logout
-    const logout = () => {
-        localStorage.removeItem('userInfo');
-        delete apiClient.defaults.headers.common['Authorization'];
-        setUser(null);
-    };
+    useEffect(() => {
+        const responseInterceptor = apiClient.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                const { status, config } = error.response || {};
+                
+                if (status === 401 && config.url !== '/auth/login') {
+                    logout();
+                }
+                return Promise.reject(error);
+            }
+        );
 
-    // 6. Cung cấp state và hàm cho các component con
-    const value = {
+        return () => {
+            apiClient.interceptors.response.eject(responseInterceptor);
+        };
+    }, [logout]);
+
+    const login = useCallback(async (email, password) => {
+        const { data } = await apiClient.post('/auth/login', { email, password });
+        localStorage.setItem('token', data.data.token);
+        const userResponse = await getMe();
+        setUser(userResponse.data.data);
+        return data;
+    }, []);
+
+    const register = useCallback(async (userData) => {
+        const { data } = await apiClient.post('/auth/register', userData);
+        localStorage.setItem('token', data.data.token);
+        const userResponse = await getMe();
+        setUser(userResponse.data.data);
+        return data;
+    }, []);
+
+    const value = useMemo(() => ({
         user,
-        loading,
+        setUser,
+        isLoading,
         login,
         logout,
-    };
+        register,
+    }), [user, isLoading, login, logout, register]);
 
-    // Chỉ render con khi đã kiểm tra xong (tránh lỗi)
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {!isLoading && children}
         </AuthContext.Provider>
     );
 };
 
-// 7. Tạo custom Hook (để dễ sử dụng)
 export const useAuth = () => {
-    return useContext(AuthContext);
+    const context = useContext(AuthContext);
+    if (context === null) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
 };

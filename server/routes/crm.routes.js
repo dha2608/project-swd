@@ -1,16 +1,38 @@
 const express = require('express');
+const { 
+    bookTestDrive, 
+    getTestDrives, 
+    updateTestDriveStatus,
+    logFeedback, 
+    getFeedback, 
+    updateFeedbackStatus,
+    getCRMStatistics,
+    getCustomers
+} = require('../controllers/crm.controller');
+const { protect, authorize } = require('../middleware/auth.middleware');
+const {
+    validateTestDriveRules,
+    validateFeedbackRules,
+    validate,
+    validateUpdateFeedbackStatusRules,
+    validateUpdateTestDriveStatusRules
+} = require('../middleware/validation.middleware');
+
 const router = express.Router();
-const crmController = require('../controllers/crm.controller');
 
-const { validateTestDriveRules, validate } = require('../middleware/validator');
+router.use(protect);
+router.use(authorize('DealerStaff', 'DealerManager', 'EVMStaff', 'Admin'));
 
-router.post(
-    '/test-drives', 
-    validateTestDriveRules,  
-    validate,           
-    crmController.createTestDrive 
-);
+router.post('/test-drives', validateTestDriveRules, validate, bookTestDrive);
+router.get('/test-drives', getTestDrives);
+router.put('/test-drives/:testDriveId/status', validateUpdateTestDriveStatusRules, validate, updateTestDriveStatus);
 
-router.post('/feedback', crmController.createFeedback);
+router.post('/feedback', validateFeedbackRules, validate, logFeedback);
+router.get('/feedback', getFeedback);
+router.put('/feedback/:feedbackId/status', validateUpdateFeedbackStatusRules, validate, updateFeedbackStatus);
+
+router.get('/statistics', getCRMStatistics);
+
+router.get('/customers', getCustomers);
 
 module.exports = router;

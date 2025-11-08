@@ -1,30 +1,50 @@
 const authService = require('../services/auth.service');
 
-// @desc    Đăng ký user mới
-// @route   POST /api/auth/register
-const register = async (req, res) => {
-    const { name, email, password, role } = req.body;
+const register = async (req, res, next) => {
     try {
+        const { name, email, password, role } = req.body;
         const user = await authService.registerUser(name, email, password, role);
-        res.status(201).json(user);
+        
+        res.status(201).json({
+            success: true,
+            message: 'Đăng ký thành công',
+            data: user
+        });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Đăng nhập user
-// @route   POST /api/auth/login
-const login = async (req, res) => {
-    const { email, password } = req.body;
+const login = async (req, res, next) => {
     try {
+        const { email, password } = req.body;
         const user = await authService.loginUser(email, password);
-        res.status(200).json(user);
+        
+        res.status(200).json({
+            success: true,
+            message: 'Đăng nhập thành công',
+            data: user
+        });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        next(error);
+    }
+};
+
+const getMe = async (req, res, next) => {
+    try {
+        const user = await authService.getUserById(req.user._id);
+        
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (error) {
+        next(error);
     }
 };
 
 module.exports = {
     register,
     login,
+    getMe
 };

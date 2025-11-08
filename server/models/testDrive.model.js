@@ -19,6 +19,7 @@ const testDriveSchema = new Schema({
         enum: ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'], 
         default: 'PENDING' 
     },
+    notes: { type: String },
     customer: { 
         type: Schema.Types.ObjectId, 
         ref: 'Customer', 
@@ -28,6 +29,10 @@ const testDriveSchema = new Schema({
         type: Schema.Types.ObjectId, 
         ref: 'Vehicle', 
         required: true 
+    },
+    dealer: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
     }
 }, { timestamps: true }); 
 
