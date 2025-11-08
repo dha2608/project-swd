@@ -7,7 +7,8 @@ const {
     getFeedback, 
     updateFeedbackStatus,
     getCRMStatistics,
-    getCustomers
+    getCustomers,
+    getBookedSlots
 } = require('../controllers/crm.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const {
@@ -26,6 +27,7 @@ router.use(authorize('DealerStaff', 'DealerManager', 'EVMStaff', 'Admin'));
 router.post('/test-drives', validateTestDriveRules, validate, bookTestDrive);
 router.get('/test-drives', getTestDrives);
 router.put('/test-drives/:testDriveId/status', validateUpdateTestDriveStatusRules, validate, updateTestDriveStatus);
+router.get('/test-drives/booked-slots', getBookedSlots);
 
 router.post('/feedback', validateFeedbackRules, validate, logFeedback);
 router.get('/feedback', getFeedback);

@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { submitFeedback } from '../services/api';
 
-const FeedbackForm = ({ customerId }) => {
+const FeedbackForm = ({ customerId, vehicleId }) => {
     const [formData, setFormData] = useState({
         subject: '',
         content: '',
         type: 'COMPLAINT',
+        severity: 'MEDIUM',
         customerName: '',
         customerPhone: '',
     });
     const [notification, setNotification] = useState({ message: '', type: '' });
     const [loading, setLoading] = useState(false);
-    const [errors, setErrors] = useState({ customerName: '', customerPhone: '', subject: '', content: '' });
+    const [errors, setErrors] = useState({ customerName: '', customerPhone: '', subject: '', content: '', severity: '' });
 
     const normalizePhoneDigits = (input) => (input || '').replace(/\D+/g, '').slice(0, 11);
     const isValidVietnamPhone = (digits) => /^0\d{9,10}$/.test(digits);
@@ -42,6 +43,11 @@ const FeedbackForm = ({ customerId }) => {
             setErrors(prev => ({ ...prev, content: value && !isValidContent(value) ? 'Nội dung tối thiểu 10 ký tự.' : '' }));
             return;
         }
+        if (name === 'severity') {
+            setFormData(prev => ({ ...prev, severity: value }));
+            setErrors(prev => ({ ...prev, severity: '' }));
+            return;
+        }
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
@@ -51,9 +57,8 @@ const FeedbackForm = ({ customerId }) => {
         setNotification({ message: '', type: '' });
 
         const dataToSubmit = {
-            content: formData.subject
-                ? `[Chủ đề] ${formData.subject}\n\n${formData.content}`
-                : formData.content,
+            subject: formData.subject || undefined,
+            content: formData.content,
             type: formData.type,
         };
 
@@ -70,9 +75,9 @@ const FeedbackForm = ({ customerId }) => {
             setLoading(false);
             return;
         }
-        if (!isValidSubject(formData.subject)) {
+        if (formData.type === 'COMPLAINT' && !isValidSubject(formData.subject)) {
             setErrors(prev => ({ ...prev, subject: 'Chủ đề tối thiểu 3 ký tự.' }));
-            setNotification({ message: 'Vui lòng nhập chủ đề tối thiểu 3 ký tự.', type: 'error' });
+            setNotification({ message: 'Vui lòng nhập chủ đề tối thiểu 3 ký tự cho khiếu nại.', type: 'error' });
             setLoading(false);
             return;
         }
@@ -88,6 +93,14 @@ const FeedbackForm = ({ customerId }) => {
         }
         dataToSubmit.customerName = formData.customerName.trim();
         dataToSubmit.customerPhone = phoneNormalized;
+
+        // Additional fields
+        if (formData.type === 'COMPLAINT') {
+            dataToSubmit.severity = formData.severity;
+        }
+        if (vehicleId) {
+            dataToSubmit.vehicleId = vehicleId;
+        }
 
         try {
             const response = await submitFeedback(dataToSubmit);
@@ -108,13 +121,14 @@ const FeedbackForm = ({ customerId }) => {
             const serverErrors = error.response?.data?.errors;
 
             if (Array.isArray(serverErrors) && serverErrors.length) {
-                const nextErrors = { customerName: '', customerPhone: '', subject: '', content: '' };
+                const nextErrors = { customerName: '', customerPhone: '', subject: '', content: '', severity: '' };
                 serverErrors.forEach(({ field, message }) => {
                     if (!field || !message) return;
                     if (field === 'customerName') nextErrors.customerName = message;
                     if (field === 'customerPhone') nextErrors.customerPhone = message;
                     if (field === 'subject') nextErrors.subject = message;
                     if (field === 'content') nextErrors.content = message;
+                    if (field === 'severity') nextErrors.severity = message;
                 });
                 setErrors(prev => ({ ...prev, ...nextErrors }));
             }
@@ -180,11 +194,22 @@ const FeedbackForm = ({ customerId }) => {
                     type="text"
                     value={formData.subject}
                     onChange={handleChange}
-                    required
+                    required={formData.type === 'COMPLAINT'}
                     minLength={3}
                 />
                 {errors.subject && <small className="message error">{errors.subject}</small>}
             </div>
+            {formData.type === 'COMPLAINT' && (
+                <div className="form-group">
+                    <label htmlFor="severity">Mức độ nghiêm trọng</label>
+                    <select id="severity" name="severity" value={formData.severity} onChange={handleChange} required>
+                        <option value="LOW">Thấp</option>
+                        <option value="MEDIUM">Trung bình</option>
+                        <option value="HIGH">Cao</option>
+                    </select>
+                    {errors.severity && <small className="message error">{errors.severity}</small>}
+                </div>
+            )}
             <div className="form-group grid-span-2">
                 <label htmlFor="content">Nội dung chi tiết</label>
                 <textarea

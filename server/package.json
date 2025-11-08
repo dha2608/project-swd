@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "strip:comments": "node scripts/remove_comment_lines.js"
+    "strip:comments": "node scripts/remove_comment_lines.js",
+    "seed:staff": "node scripts/seed_dealer_staff.js",
+    "seed:vehicles": "node scripts/seed_vehicles.js"
   },
   "keywords": [],
   "author": "",

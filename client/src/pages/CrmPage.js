@@ -193,8 +193,12 @@ const CrmPage = () => {
                                         <option value="">-- Chọn khách hàng (hoặc tự nhập) --</option>
                                         {customers.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                                     </select>
+                                    <select value={selectedVehicleId} onChange={e => setSelectedVehicleId(e.target.value)}>
+                                        <option value="">-- Liên kết xe (tùy chọn) --</option>
+                                        {vehicles.map(v => <option key={v._id} value={v._id}>{v.brand} {v.model}</option>)}
+                                    </select>
                                 </div>
-                                <FeedbackForm customerId={selectedCustomerId} />
+                                <FeedbackForm customerId={selectedCustomerId} vehicleId={selectedVehicleId} />
                                 {loading ? <p>Đang tải...</p> : error ? <p style={{ color: 'red' }}>{error}</p> : feedback.length > 0 ? (
                                     <ul>
                                         {feedback.map(fb => (

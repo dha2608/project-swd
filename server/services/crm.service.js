@@ -3,6 +3,7 @@ const TestDrive = require('../models/testDrive.model');
 const Feedback = require('../models/feedback.model');
 const Vehicle = require('../models/vehicle.model');
 const User = require('../models/user.model');
+const rules = require('../config/businessRules');
 
 async function findOrCreateCustomer(name, phone, email = null, dealerId = null) {
     try {
@@ -67,19 +68,17 @@ async function findOrCreateCustomer(name, phone, email = null, dealerId = null) 
 
 async function isSlotAvailable(vehicleId, scheduleDate, dealerId) {
     try {
-        const oneHour = 60 * 60 * 1000;
-        
-        const slotStart = new Date(scheduleDate.getTime() - oneHour);
-        const slotEnd = new Date(scheduleDate.getTime() + oneHour);
+        // Xác định khung giờ [HH:00, HH:59:59.999]
+        const hourStart = new Date(scheduleDate);
+        hourStart.setMinutes(0, 0, 0);
+        const hourEnd = new Date(scheduleDate);
+        hourEnd.setMinutes(59, 59, 999);
 
         const conflict = await TestDrive.findOne({
             vehicle: vehicleId,
             dealer: dealerId,
-            status: { $in: ['PENDING', 'CONFIRMED'] }, 
-            schedule: {
-                $gte: slotStart,
-                $lte: slotEnd   
-            }
+            status: { $in: ['PENDING', 'CONFIRMED'] },
+            schedule: { $gte: hourStart, $lte: hourEnd }
         });
 
         return !conflict;
@@ -133,7 +132,16 @@ async function bookTestDrive(requestData) {
         }
 
         const scheduleDate = new Date(schedule);
-        
+        // Yêu cầu đặt lịch tối thiểu vào ngày hôm sau (không cùng ngày)
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const startOfSelected = new Date(scheduleDate.getFullYear(), scheduleDate.getMonth(), scheduleDate.getDate(), 0, 0, 0, 0);
+        if (startOfSelected.getTime() === startOfToday.getTime()) {
+            console.warn('[CRM] Invalid schedule date (same day)', { schedule: scheduleDate.toISOString() });
+            const err = new Error('Đăng ký lái thử trước ít nhất 1 ngày (lái thử vào ngày hôm sau)');
+            err.statusCode = 400;
+            throw err;
+        }
         if (scheduleDate <= new Date()) {
             console.warn('[CRM] Invalid schedule date', { schedule: scheduleDate.toISOString() });
             const err = new Error('Ngày hẹn phải là ngày trong tương lai');
@@ -142,13 +150,13 @@ async function bookTestDrive(requestData) {
         }
 
         const hour = scheduleDate.getHours();
-        if (hour < 8 || hour >= 18) {
+        if (hour < rules.BUSINESS_HOURS_START || hour >= rules.BUSINESS_HOURS_END) {
             const err = new Error('Lịch hẹn chỉ trong khung giờ 08:00-18:00');
             err.statusCode = 400;
             throw err;
         }
-        if (scheduleDate.getDay() === 0) {
-            const err = new Error('Không nhận lịch hẹn vào Chủ nhật');
+        if (rules.CLOSED_WEEKDAYS.includes(scheduleDate.getDay())) {
+            const err = new Error('Ngày này hiện không nhận lịch hẹn');
             err.statusCode = 400;
             throw err;
         }
@@ -183,34 +191,32 @@ async function bookTestDrive(requestData) {
             customer = await findOrCreateCustomer(customerName, customerPhone, customerEmail, dealerRef);
         }
 
+        // Không cho phép khách thử lại CÙNG MỘT XE trong vòng 7 ngày
         const sevenDaysAgo = new Date(scheduleDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const sameModelVehicles = await Vehicle.find({ model: vehicle.model }, '_id');
-        const sameModelVehicleIds = sameModelVehicles.map(v => v._id);
-        if (sameModelVehicleIds.length > 0) {
-            const existingSameModelRecent = await TestDrive.findOne({
-                customer: customer._id,
-                vehicle: { $in: sameModelVehicleIds },
-                schedule: { $gte: sevenDaysAgo, $lt: scheduleDate }
-            });
-            if (existingSameModelRecent) {
-                const err = new Error('Khách hàng chỉ được thử lại cùng mẫu xe sau 7 ngày');
-                err.statusCode = 409;
-                throw err;
-            }
+        const existingSameVehicleRecent = await TestDrive.findOne({
+            customer: customer._id,
+            vehicle: vehicle._id,
+            schedule: { $gte: sevenDaysAgo, $lt: scheduleDate }
+        });
+        if (existingSameVehicleRecent) {
+            const err = new Error('Khách hàng chỉ được thử lại cùng một xe sau 7 ngày');
+            err.statusCode = 409;
+            throw err;
         }
 
-        const dayStart = new Date(scheduleDate);
-        dayStart.setHours(0,0,0,0);
-        const dayEnd = new Date(scheduleDate);
-        dayEnd.setHours(23,59,59,999);
-        const existingSameDay = await TestDrive.findOne({
+        // Cho phép đặt trùng ngày nhưng KHÔNG trùng giờ đối với cùng khách hàng
+        const hourStart = new Date(scheduleDate);
+        hourStart.setMinutes(0, 0, 0);
+        const hourEnd = new Date(scheduleDate);
+        hourEnd.setMinutes(59, 59, 999);
+        const existingSameHour = await TestDrive.findOne({
             customer: customer._id,
             dealer: dealerRef,
             status: { $in: ['PENDING', 'CONFIRMED'] },
-            schedule: { $gte: dayStart, $lte: dayEnd }
+            schedule: { $gte: hourStart, $lte: hourEnd }
         });
-        if (existingSameDay) {
-            const err = new Error('Khách hàng đã có lịch hẹn trong ngày này. Vui lòng chọn ngày khác.');
+        if (existingSameHour) {
+            const err = new Error('Khách hàng đã có lịch hẹn trong cùng giờ này. Vui lòng chọn giờ khác.');
             err.statusCode = 409;
             throw err;
         }
@@ -342,7 +348,7 @@ async function updateTestDriveStatus(testDriveId, status, dealerId) {
 
 async function logFeedback(requestData) {
     try {
-        const { customerId, customerName, customerPhone, content, type = 'GENERAL', dealerId } = requestData;
+        const { customerId, customerName, customerPhone, content, type = 'GENERAL', dealerId, subject, severity, channel = 'IN_PERSON', vehicleId } = requestData;
 
         let customer;
         if (customerId) {
@@ -366,11 +372,38 @@ async function logFeedback(requestData) {
             customer = await findOrCreateCustomer(customerName, customerPhone, null, dealerId);
         }
 
+        // Optionally link vehicle if provided and belongs to dealer
+        let vehicleRef = null;
+        if (vehicleId) {
+            const vehicle = await Vehicle.findById(vehicleId);
+            if (!vehicle) {
+                const err = new Error('Xe không tồn tại');
+                err.statusCode = 404;
+                throw err;
+            }
+            if (vehicle.dealer && dealerId && vehicle.dealer.toString() !== dealerId.toString()) {
+                const err = new Error('Xe không thuộc quyền quản lý của bạn');
+                err.statusCode = 403;
+                throw err;
+            }
+            vehicleRef = vehicle._id;
+        }
+
+        if (type === 'COMPLAINT' && !severity) {
+            const err = new Error('Khiếu nại phải có mức độ nghiêm trọng');
+            err.statusCode = 400;
+            throw err;
+        }
+
         const newFeedback = new Feedback({
             customer: customer._id,
             dealer: dealerId,
             content: content,
             type: type,
+            subject: subject,
+            severity: severity,
+            channel: channel,
+            vehicle: vehicleRef,
             status: 'OPEN'
         });
         
@@ -550,3 +583,61 @@ async function getCustomers(dealerId) {
 }
 
 module.exports.getCustomers = getCustomers;
+
+// Lấy danh sách khung giờ đã được đặt theo xe và ngày (để hiển thị trên UI)
+async function getBookedSlots(vehicleId, dateStr, dealerId) {
+    try {
+        const actor = await User.findById(dealerId);
+        const vehicle = await Vehicle.findById(vehicleId);
+        if (!vehicle) {
+            const err = new Error('Xe không tồn tại');
+            err.statusCode = 404;
+            throw err;
+        }
+        if (actor && ['DealerStaff', 'DealerManager'].includes(actor.role)) {
+            if (!vehicle.dealer || vehicle.dealer.toString() !== dealerId.toString()) {
+                const err = new Error('Xe không thuộc quyền quản lý của bạn');
+                err.statusCode = 403;
+                throw err;
+            }
+        }
+
+        // Tạo phạm vi thời gian theo ngày yêu cầu (giờ địa phương)
+        const parts = (dateStr || '').split('-');
+        if (parts.length !== 3) {
+            const err = new Error('Định dạng ngày không hợp lệ (YYYY-MM-DD)');
+            err.statusCode = 400;
+            throw err;
+        }
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // 0-based
+        const day = parseInt(parts[2], 10);
+        const dayStart = new Date(year, month, day, 0, 0, 0, 0);
+        const dayEnd = new Date(year, month, day, 23, 59, 59, 999);
+
+        const drives = await TestDrive.find({
+            vehicle: vehicleId,
+            dealer: vehicle.dealer || dealerId,
+            status: { $in: ['PENDING', 'CONFIRMED'] },
+            schedule: { $gte: dayStart, $lte: dayEnd }
+        }).select('schedule');
+
+        // Trả về danh sách giờ (HH:MM) đã được đặt
+        const slots = Array.from(new Set(
+            drives.map(d => {
+                const dt = new Date(d.schedule);
+                const hh = String(dt.getHours()).padStart(2, '0');
+                const mm = String(dt.getMinutes()).padStart(2, '0');
+                return `${hh}:${mm}`;
+            })
+        )).sort();
+
+        return { date: dateStr, vehicleId: vehicleId.toString(), slots };
+    } catch (error) {
+        const err = new Error(error.message);
+        err.statusCode = error.statusCode || 400;
+        throw err;
+    }
+}
+
+module.exports.getBookedSlots = getBookedSlots;

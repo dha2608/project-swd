@@ -60,6 +60,10 @@ export const getTestDrives = () => {
     return apiClient.get('/crm/test-drives');
 }
 
+export const getBookedSlots = (vehicleId, date) => {
+    return apiClient.get('/crm/test-drives/booked-slots', { params: { vehicleId, date } });
+}
+
 export const submitFeedback = (formData) => {
     return apiClient.post('/crm/feedback', formData);
 };

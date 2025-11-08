@@ -95,19 +95,47 @@ const validateFeedbackRules = [
         .notEmpty()
         .withMessage('Nội dung phản hồi là bắt buộc')
         .isLength({ min: 10, max: 1000 })
-        .withMessage('Nội dung phải từ 10-1000 ký tự')
-        ,
+        .withMessage('Nội dung phải từ 10-1000 ký tự'),
 
     body('type')
         .optional()
         .isIn(rules.FEEDBACK_TYPES)
-        .withMessage('Phân loại phản hồi không hợp lệ'),
+        .withMessage('Phân loại phản hồi không hợp lệ')
+        .bail()
+        .custom((value, { req }) => {
+            if (value === 'COMPLAINT') {
+                const subject = (req.body.subject || '').trim();
+                const severity = (req.body.severity || '').trim();
+                if (!subject || subject.length < 3) {
+                    throw new Error('Chủ đề bắt buộc cho khiếu nại (tối thiểu 3 ký tự)');
+                }
+                if (!rules.FEEDBACK_SEVERITY.includes(severity)) {
+                    throw new Error('Mức độ nghiêm trọng không hợp lệ (LOW, MEDIUM, HIGH)');
+                }
+            }
+            return true;
+        }),
 
     body('subject')
         .optional()
         .trim()
         .isLength({ min: 3, max: 100 })
-        .withMessage('Chủ đề phải từ 3-100 ký tự')
+        .withMessage('Chủ đề phải từ 3-100 ký tự'),
+
+    body('severity')
+        .optional()
+        .isIn(rules.FEEDBACK_SEVERITY)
+        .withMessage('Mức độ nghiêm trọng không hợp lệ (LOW, MEDIUM, HIGH)'),
+
+    body('channel')
+        .optional()
+        .isIn(rules.FEEDBACK_CHANNELS)
+        .withMessage('Kênh ghi nhận không hợp lệ (IN_PERSON, PHONE, EMAIL)'),
+
+    body('vehicleId')
+        .optional()
+        .isMongoId()
+        .withMessage('Vehicle ID không hợp lệ')
 ];
 
 const validate = (req, res, next) => {
@@ -228,6 +256,13 @@ const validateTestDriveRules = [
         .toDate()
         .withMessage('Ngày hẹn không hợp lệ')
         .custom((value) => {
+            // Yêu cầu đặt lịch tối thiểu vào ngày hôm sau (không cùng ngày)
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            const startOfSelected = new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
+            if (startOfSelected.getTime() === startOfToday.getTime()) {
+                throw new Error('Đăng ký lái thử trước ít nhất 1 ngày (lái thử vào ngày hôm sau)');
+            }
             if (value <= new Date()) {
                 throw new Error('Ngày hẹn phải là ngày trong tương lai');
             }
@@ -237,6 +272,13 @@ const validateTestDriveRules = [
             const hour = value.getHours();
             if (hour < rules.BUSINESS_HOURS_START || hour >= rules.BUSINESS_HOURS_END) {
                 throw new Error('Lịch hẹn chỉ trong khung giờ 08:00-18:00');
+            }
+            return true;
+        })
+        .custom((value) => {
+            // chỉ nhận lịch theo giờ tròn, loại bỏ phút (00)
+            if (value.getMinutes() !== 0) {
+                throw new Error('Lịch hẹn phải bắt đầu vào đầu giờ (phút = 00)');
             }
             return true;
         })

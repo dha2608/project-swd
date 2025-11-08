@@ -68,7 +68,7 @@ async function updateTestDriveStatus(req, res, next) {
 
 async function logFeedback(req, res, next) {
     try {
-        const { customerId, customerName, customerPhone, content, type } = req.body;
+        const { customerId, customerName, customerPhone, content, type, subject, severity, channel, vehicleId } = req.body;
         const dealerId = req.user.id;
 
         const feedback = await crmService.logFeedback({ 
@@ -77,6 +77,10 @@ async function logFeedback(req, res, next) {
             customerPhone,
             content,
             type,
+            subject,
+            severity,
+            channel,
+            vehicleId,
             dealerId 
         });
 
@@ -152,7 +156,8 @@ module.exports = {
     getFeedback,
     updateFeedbackStatus,
     getCRMStatistics,
-    getCustomers
+    getCustomers,
+    getBookedSlots
 };
 
 async function getCustomers(req, res, next) {
@@ -163,6 +168,28 @@ async function getCustomers(req, res, next) {
             success: true,
             message: 'Lấy danh sách khách hàng thành công',
             data: customers
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function getBookedSlots(req, res, next) {
+    try {
+        const dealerId = req.user.id;
+        const { vehicleId, date } = req.query;
+        if (!vehicleId || !date) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu tham số vehicleId hoặc date (YYYY-MM-DD)'
+            });
+        }
+
+        const result = await crmService.getBookedSlots(vehicleId, date, dealerId);
+        return res.status(200).json({
+            success: true,
+            message: 'Lấy khung giờ đã đặt thành công',
+            data: result
         });
     } catch (error) {
         next(error);

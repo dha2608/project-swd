@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { bookTestDrive, getAvailableVehicles, getVehicles, getVehicleById, getCustomers } from '../services/api';
+import { bookTestDrive, getAvailableVehicles, getVehicles, getVehicleById, getCustomers, getBookedSlots } from '../services/api';
 import { FiCalendar, FiUser, FiPhone, FiTruck, FiEdit2 } from 'react-icons/fi';
 
 const TestDriveForm = ({ vehicleId, customerId }) => {
@@ -8,7 +8,7 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
         customerPhone: '',
         schedule: '',
         notes: '',
-        vehicleId: vehicleId || '',
+        vehicleId: '',
     });
     const [errors, setErrors] = useState({ customerName: '', customerPhone: '', schedule: '', vehicleId: '' });
     const [vehicles, setVehicles] = useState([]);
@@ -16,6 +16,10 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
     const [notification, setNotification] = useState({ message: '', type: '' });
     const [loading, setLoading] = useState(false);
     const [forceNewCustomer, setForceNewCustomer] = useState(false);
+    const [bookedSlots, setBookedSlots] = useState([]);
+    const [slotsLoading, setSlotsLoading] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(''); // YYYY-MM-DD
+    const [selectedHour, setSelectedHour] = useState(''); // 'HH'
 
     useEffect(() => {
         const fetchVehicles = async () => {
@@ -32,9 +36,7 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
                 } catch (vehErr) {
                 }
                 setVehicles(vehiclesData);
-                if (!vehicleId && vehiclesData.length > 0) {
-                    setFormData(prev => ({ ...prev, vehicleId: vehiclesData[0]._id }));
-                }
+                // Không tự động chọn xe đầu tiên; buộc người dùng chọn thủ công
             } catch (error) {
                 setVehicleLoadingError('Lỗi: Không thể tải danh sách xe.');
             }
@@ -42,30 +44,45 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
         fetchVehicles();
     }, [vehicleId]);
 
-    useEffect(() => {
-        if (vehicleId) {
-            setFormData(prev => ({ ...prev, vehicleId }));
-        }
-    }, [vehicleId]);
+    // Không tự động gán vehicleId từ props; buộc người dùng chọn thủ công
 
-    const getMinDateTime = () => {
+    const getMinDate = () => {
         const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset() + 15);
-        return now.toISOString().slice(0, 16);
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    };
+    const BUSINESS_START = 8;
+    const BUSINESS_END = 18; // exclusive
+    const HOURS = Array.from({ length: BUSINESS_END - BUSINESS_START }, (_, i) => String(BUSINESS_START + i).padStart(2, '0'));
+
+    const toLocalDateString = (isoLike) => {
+        if (!isoLike) return '';
+        const d = new Date(isoLike);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
     };
 
     const normalizePhoneDigits = (input) => (input || '').replace(/\D/g, '').slice(0, 11);
     const isValidVietnamPhone = (digits) => /^0\d{9,10}$/.test(digits);
     const isValidName = (name) => !!(name && name.trim().length >= 2);
-    const checkScheduleConstraints = (isoLike) => {
-        if (!isoLike) return { valid: false, message: 'Vui lòng chọn ngày giờ hẹn.' };
-        const d = new Date(isoLike);
+    const checkScheduleConstraints = (dateStr, hourStr) => {
+        if (!dateStr || !hourStr) return { valid: false, message: 'Vui lòng chọn ngày và khung giờ hẹn.' };
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const hours = Number(hourStr);
+        const d = new Date(year, month - 1, day, hours, 0, 0, 0);
         const now = new Date();
+        // Không cho phép đặt trong cùng ngày, yêu cầu ít nhất ngày hôm sau
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const startOfSelected = new Date(year, month - 1, day, 0, 0, 0, 0);
+        if (startOfSelected.getTime() === startOfToday.getTime()) {
+            return { valid: false, message: 'Đăng ký lái thử trước ít nhất 1 ngày (lái thử vào ngày hôm sau).' };
+        }
         if (d <= now) return { valid: false, message: 'Ngày giờ hẹn phải sau thời điểm hiện tại.' };
-        const day = d.getDay(); // 0: Sunday
-        if (day === 0) return { valid: false, message: 'Không nhận lịch hẹn vào Chủ nhật.' };
-        const minutes = d.getHours() * 60 + d.getMinutes();
-        if (minutes < 8 * 60 || minutes > 18 * 60) {
+        if (hours < BUSINESS_START || hours >= BUSINESS_END) {
             return { valid: false, message: 'Thời gian hẹn phải trong khung giờ 08:00–18:00.' };
         }
         return { valid: true };
@@ -92,14 +109,33 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
             }
             return;
         }
-        if (name === 'schedule') {
-            setFormData(prev => ({ ...prev, schedule: value }));
-            const check = checkScheduleConstraints(value);
-            setErrors(prev => ({ ...prev, schedule: check.valid ? '' : check.message }));
-            return;
-        }
+        // bỏ xử lý trực tiếp schedule - dùng chọn ngày + giờ
         setFormData(prev => ({ ...prev, [name]: value }));
     };
+
+    // Tải khung giờ đã đặt khi chọn xe hoặc đổi ngày
+    useEffect(() => {
+        const loadSlots = async () => {
+            const vId = formData.vehicleId;
+            const dateStr = selectedDate;
+            if (!vId || !dateStr) {
+                setBookedSlots([]);
+                return;
+            }
+            setSlotsLoading(true);
+            try {
+                const res = await getBookedSlots(vId, dateStr);
+                const slots = res?.data?.data?.slots || [];
+                setBookedSlots(slots);
+            } catch (_) {
+                setBookedSlots([]);
+            } finally {
+                setSlotsLoading(false);
+            }
+        };
+        loadSlots();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.vehicleId, selectedDate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -190,7 +226,7 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
             }
         }
 
-        const scheduleCheck = checkScheduleConstraints(formData.schedule);
+        const scheduleCheck = checkScheduleConstraints(selectedDate, selectedHour);
         if (!scheduleCheck.valid) {
             setErrors(prev => ({ ...prev, schedule: scheduleCheck.message }));
             setNotification({ message: scheduleCheck.message, type: 'error' });
@@ -216,8 +252,11 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
             }
         }
 
+        const [Y, M, D] = selectedDate.split('-').map(Number);
+        const H = Number(selectedHour);
+        const composedDate = new Date(Y, M - 1, D, H, 0, 0, 0);
         const dataToSubmit = {
-            schedule: new Date(formData.schedule).toISOString(),
+            schedule: composedDate.toISOString(),
             notes: formData.notes,
             vehicleId: formData.vehicleId,
         };
@@ -290,7 +329,7 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
                             required
                             disabled={vehicles.length === 0 || vehicleLoadingError}
                         >
-                            <option value="" disabled>-- Vui lòng chọn xe --</option>
+                            <option value="" disabled>— Chọn xe lái thử trước —</option>
                             {vehicles.map(v => (
                                 <option key={v._id} value={v._id}>
                                     {v.brand} {v.model}
@@ -341,20 +380,93 @@ const TestDriveForm = ({ vehicleId, customerId }) => {
                 </div>
                 
                 <div className="form-group grid-span-2">
-                    <label htmlFor="schedule">Ngày giờ hẹn</label>
+                    <label>Ngày giờ hẹn</label>
                     <div className="form-group-icon">
                         <FiCalendar />
-                        <input
-                            type="datetime-local"
-                            id="schedule"
-                            name="schedule"
-                            value={formData.schedule}
-                            onChange={handleChange}
-                            min={getMinDateTime()}
-                            required
-                        />
+                        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                            <input
+                                type="date"
+                                id="date"
+                                name="date"
+                                value={selectedDate}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSelectedDate(v);
+                                    const check = checkScheduleConstraints(v, selectedHour);
+                                    setErrors(prev => ({ ...prev, schedule: check.valid ? '' : check.message }));
+                                    // cập nhật schedule nếu có đủ ngày + giờ
+                                    if (v && selectedHour) {
+                                        const H = String(Number(selectedHour)).padStart(2, '0');
+                                        setFormData(prev => ({ ...prev, schedule: `${v}T${H}:00` }));
+                                    } else {
+                                        setFormData(prev => ({ ...prev, schedule: '' }));
+                                    }
+                                }}
+                                min={getMinDate()}
+                                required
+                                style={{ flex: 1 }}
+                            />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                                    {HOURS.map(hh => {
+                                        const label = `${hh}:00`;
+                                        const isBooked = bookedSlots.includes(label);
+                                        const isPast = (() => {
+                                            if (!selectedDate) return false;
+                                            const [Y, M, D] = selectedDate.split('-').map(Number);
+                                            const slotDate = new Date(Y, M - 1, D, Number(hh), 0, 0, 0);
+                                            return slotDate <= new Date();
+                                        })();
+                                        const disabled = isBooked || isPast;
+                                        const active = selectedHour === hh;
+                                        return (
+                                            <button
+                                                key={hh}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (disabled) return;
+                                                    setSelectedHour(hh);
+                                                    const check = checkScheduleConstraints(selectedDate, hh);
+                                                    setErrors(prev => ({ ...prev, schedule: check.valid ? '' : check.message }));
+                                                    if (selectedDate) {
+                                                        const H = String(Number(hh)).padStart(2, '0');
+                                                        setFormData(prev => ({ ...prev, schedule: `${selectedDate}T${H}:00` }));
+                                                    }
+                                                }}
+                                                className="slot-button"
+                                                disabled={disabled}
+                                                style={{
+                                                    padding: '8px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid #ced4da',
+                                                    cursor: disabled ? 'not-allowed' : 'pointer',
+                                                    background: isBooked ? '#fdeaea' : active ? '#007aff' : '#ffffff',
+                                                    color: active ? '#ffffff' : '#333'
+                                                }}
+                                            >
+                                                {label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <small style={{ display: 'block', marginTop: '8px', color: '#666' }}>
+                                    Màu đỏ: khung giờ đã có người đặt. Chỉ đặt đầu giờ, thời lượng 1 giờ.
+                                </small>
+                            </div>
+                        </div>
                     </div>
                     {errors.schedule && <small className="message error">{errors.schedule}</small>}
+                    <div style={{ marginTop: '0.75rem' }}>
+                        {slotsLoading ? (
+                            <small>Đang tải khung giờ đã đặt...</small>
+                        ) : bookedSlots.length > 0 ? (
+                            <small style={{ display: 'block', textAlign: 'left', color: '#555' }}>
+                                Khung giờ đã đặt: {bookedSlots.join(', ')}
+                            </small>
+                        ) : (
+                            <small style={{ color: '#666' }}>Chưa có khung giờ nào bị chiếm trong ngày.</small>
+                        )}
+                    </div>
                 </div>
                 
                 <div className="form-group grid-span-2">
